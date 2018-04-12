@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton, QAction,
                             QDialog, QDialogButtonBox, QLabel, QStackedLayout, QStackedWidget)
 from PyQt5.QtCore import Qt
-from PyQt5.QtCore import pyqtSignal
 import sys
 from enum import Enum
 from functools import partial
+from utility import clear_layout
 from expression_evaluate import ExpressionEvaluator, TrigMode
+from equation_solver import linear_solver, quad_solver
 
 class ReplacingAnsMode(Enum):
     YES = 1
@@ -83,11 +84,11 @@ class SolveEquationWidget(QWidget):
         self.start_layout = QVBoxLayout()
 
         self._21equation = QPushButton('2 variables linear equation')
-        self._21equation.clicked.connect(partial(self.create_solving_layout, 2, 3, func='21'))
+        self._21equation.clicked.connect(partial(self.create_solving_widget, 2, 3, func='line'))
         self._31equation = QPushButton('3 variables linear equation')
-        self._31equation.clicked.connect(partial(self.create_solving_layout, 3, 4, func='31'))
+        self._31equation.clicked.connect(partial(self.create_solving_widget, 3, 4, func='line'))
         self._12equation = QPushButton('1 variables quadratic equation')
-        self._12equation.clicked.connect(partial(self.create_solving_layout, 1, 3, func='12'))
+        self._12equation.clicked.connect(partial(self.create_solving_widget, 1, 3, func='quad'))
 
         self.start_layout.addWidget(self._21equation)
         self.start_layout.addWidget(self._31equation)
@@ -97,20 +98,59 @@ class SolveEquationWidget(QWidget):
         self.layout.addWidget(self.start_widget)
         self.setLayout(self.layout)
 
-    def create_solving_layout(self, row, column, func):
-        self.func = func
+    def create_solving_widget(self, row, column, func):
         self.solving_widget = QWidget()
+
         self.solving_layout = QVBoxLayout()
+
+        return_button = Button('Return')
+        return_button.clicked.connect(self.return_to_start_widget)
+        self.solving_layout.addWidget(return_button)
+
         self.entries = []
         for i in range(row):
             self.entries.append(QHBoxLayout())
             for j in range(column):
                 self.entries[i].addWidget(QLineEdit())
             self.solving_layout.addLayout(self.entries[i])
+
+        result_hbox = QHBoxLayout()
+        result_label = QLabel('Result')
+        result_hbox.addWidget(result_label)
+        self.result_num = []
+        if func == 'quad':
+            row = 2
+        for i in range(row):
+            self.result_num.append(QLabel())
+            result_hbox.addWidget(self.result_num[i])
+        self.solving_layout.addLayout(result_hbox)
+
+        ok_button = Button('OK')
+        ok_button.clicked.connect(partial(self.solve, func=func))
+        self.solving_layout.addWidget(ok_button)
+
         self.solving_widget.setLayout(self.solving_layout)
+
         self.layout.addWidget(self.solving_widget)
         self.layout.setCurrentIndex(1)
 
+    def return_to_start_widget(self):
+        clear_layout(self.solving_layout)
+        del self.solving_widget
+        self.layout.removeWidget(self.layout.currentWidget())
+        self.layout.setCurrentIndex(0)
+
+    def solve(self, func):
+        para = []
+        for hbox in self.entries:
+            for i in range(hbox.count()):
+                para.append(int(hbox.itemAt(i).widget().text()))
+        if func == 'line':
+            result = linear_solver(*para)
+        elif func == 'quad':
+            result = quad_solver(*para)
+        for i in range(len(self.result_num)):
+            self.result_num[i].setText(str(round(result[i], 11)))
 
     @staticmethod
     def run(parent=None):
@@ -373,16 +413,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     # main = Main()
     # main.show()
-    # w = QWidget()
-    # s = QStackedLayout()
-    # but1 = QPushButton('1')
-    # but2 = QPushButton('2')
-    # but3 = QPushButton('3')
-    # s.addWidget(but1)
-    # s.addWidget(but2)
-    # s.addWidget(but3)
-    # s.setCurrentIndex(1)
-    # w.setLayout(s)
-    # w.show()
     SolveEquationWidget.run()
     sys.exit(app.exec_())
